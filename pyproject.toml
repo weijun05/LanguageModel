@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "languagemodel"
+version = "0.1.0"
+description = ""
+authors = ["weijun05 <weijunfjl@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+torch = "^2.1.2"
+datasets = "^2.16.1"
+transformers = "^4.36.2"
+tqdm = "^4.66.1"
+pylint = "^3.0.3"
+fire = "^0.5.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
