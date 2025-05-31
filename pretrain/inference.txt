@@ -1,0 +1,94 @@
+# https://stackoverflow.com/questions/78458419/generating-outputs-from-last-layers-hidden-state-values
+
+from transformers import LlamaForCausalLM, LlamaModel, LlamaTokenizer
+
+tokenizer = LlamaTokenizer.from_pretrained(path_to_llama2)
+model = LlamaModel.from_pretrained(path_to_llama2)
+model_ = LlamaForCausalLM.from_pretrained(path_to_llama2)
+
+tokenizer.pad_token = tokenizer.eos_token
+inputs = tokenizer(prompt, return_tensors="pt")
+
+with torch.no_grad():
+    outputs = model(**inputs, output_attentions=True, output_hidden_states=True)
+    hidden_states = outputs.hidden_states[-1]  # Last layer hidden states
+
+
+# https://stackoverflow.com/questions/76926025/sentence-embeddings-from-llama-2-huggingface-opensource
+
+# weighted meaning pooling
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+model_id = "meta-llama/Llama-2-7b-chat-hf"
+
+t = AutoTokenizer.from_pretrained(model_id)
+t.pad_token = t.eos_token
+m = AutoModelForCausalLM.from_pretrained(
+    model_id, torch_dtype="auto", device_map="auto"
+)
+m.eval()
+
+
+texts = [
+    "this is a test",
+    "this is another test case with a different length",
+]
+t_input = t(texts, padding=True, return_tensors="pt")
+
+
+with torch.no_grad():
+    last_hidden_state = m(**t_input, output_hidden_states=True).hidden_states[-1]
+
+
+weights_for_non_padding = t_input.attention_mask * torch.arange(
+    start=1, end=last_hidden_state.shape[1] + 1
+).unsqueeze(0)
+
+sum_embeddings = torch.sum(
+    last_hidden_state * weights_for_non_padding.unsqueeze(-1), dim=1
+)
+num_of_none_padding_tokens = torch.sum(weights_for_non_padding, dim=-1).unsqueeze(-1)
+sentence_embeddings = sum_embeddings / num_of_none_padding_tokens
+
+print(t_input.input_ids)
+print(weights_for_non_padding)
+print(num_of_none_padding_tokens)
+print(sentence_embeddings.shape)
+
+
+# last token
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+model_id = "meta-llama/Llama-2-7b-chat-hf"
+
+t = AutoTokenizer.from_pretrained(model_id)
+t.pad_token = t.eos_token
+m = AutoModelForCausalLM.from_pretrained(
+    model_id, torch_dtype="auto", device_map="auto"
+)
+m.eval()
+
+
+texts = [
+    "this is a test",
+    "this is another test case with a different length",
+]
+prompt_template = "This sentence: {text} means in one word:"
+texts = [prompt_template.format(text=x) for x in texts]
+
+t_input = t(texts, padding=True, return_tensors="pt")
+
+with torch.no_grad():
+    last_hidden_state = m(
+        **t_input, output_hidden_states=True, return_dict=True
+    ).hidden_states[-1]
+
+idx_of_the_last_non_padding_token = t_input.attention_mask.bool().sum(1) - 1
+sentence_embeddings = last_hidden_state[
+    torch.arange(last_hidden_state.shape[0]), idx_of_the_last_non_padding_token
+]
+
+print(idx_of_the_last_non_padding_token)
+print(sentence_embeddings.shape)

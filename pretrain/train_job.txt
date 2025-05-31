@@ -1,0 +1,13 @@
+@dataclasses.dataclass
+class Arg(JSONFileWizard):
+    env,
+    job_input,
+    parames
+
+
+def train(json_config_file_path):
+    estimator = PyTorch(...)
+
+
+if __main__ == "__main__":
+    fire.Fire()

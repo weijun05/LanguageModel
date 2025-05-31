@@ -1,0 +1,194 @@
+"""Distributed training context"""
+
+import dataclasses
+
+import tyro
+
+
+@dataclasses.dataclass
+class OptimizationConfig: ...
+
+
+@dataclasses.dataclass
+class PeftConfig: ...
+
+
+@dataclasses.dataclass
+class TrainConfig: ...
+
+
+class Model: ...
+
+
+class TrainContext: ...
+
+
+def train():
+    context = TrainContext()
+
+
+if __name__ == "__main__":
+    tyro.cli(train)
+
+
+
+# train_entrypoint.py
+
+from lightning.pytorch import loggers as pl_loggers
+
+
+class Model(L.LightningModule):
+	def __init__(self, model_config):
+		super().__init__()
+		self.model_config = model_config,
+		self.model_context = self.get_model_context()
+		self.model = None
+		self.tokenizer = None
+
+	def get_tokenizer(self):
+		...
+
+	def configure_modle(self):
+		self.model = ...
+		self.toknizer = ...
+		...
+
+	def get_model_context(self):
+		...
+
+	def forward(self, **inputs):
+		return self.model(**inputs)
+
+	def training_step(self, batch, batch_idx):
+		outputs = self(**batch)
+		loss = outputs.loss
+		metrics = {"train_loss": loss}
+		self.log_dict(...)
+		return loss
+
+	def validation_step(self, batch, batch_idx):
+		outputs = self(**batch)
+		vol_loss = outputs.loss
+		metrics = {"eval_loss": val_loss}
+		self.log_dict(...)
+		return val_loss
+
+	def configure_optimization(self):
+		optimizer = torch.optim.AdamW(params, ...)
+		lr_scheduler = torch.optim.lr_scheduler.CyclicLR(
+			optimizer,
+			base_lr,
+			max_lr,
+			step_size_up,
+			step_size_down,
+			model,
+			cycle_momentum,
+		)
+		return {
+			"optimizer": optimizer,
+			"lr_scheduler": lr_scheduler,
+		}
+
+
+class TrainingContext:
+	def __init__(
+		self,
+		model_config,
+		experiment_config,
+	):
+		self.model_config = model_config,
+		self.experiment_config = experiment_config,
+		self.accelerator = "cuda" if torch.cuda.is_available() else "cpu"
+
+	def get_logger(self):
+		return pl_loggers.TensorBoardLogger(...)
+
+	def get_model(self):
+		return Model(model_config=model_config)
+
+	def build(self):
+		self.logger = self.get_logger()
+		self.model = self.get_model()
+
+		# update activation_checkpointing_policy
+		# update auto_wrap_policy
+
+		if self.accelerator == "cuda":
+			self.strategy = FSDPStrategy(
+				accelerator=self.accelerator,
+				**dataclasses.asdict(self.experiment_config.strategy
+			)
+		else:
+			self.strategy = SingleDeviceStrategy()
+
+		self.val_checkpoint_callback = ModelCheckpoint(...)
+		self.end_checkpoint_callback = ModelCheckpoint(...)
+
+		self.trainer = L.Trainer(
+			default_root_dir,
+			stratege=self.strategy,
+			num_nodes=...,
+			precision=...,
+			logger=...,
+			callback=[
+				self.val_checkpoint_callback,
+				self.end_checkpoint_callback,
+			],
+			...
+		)
+
+
+	def collate_batch_fn(
+		self,
+		batch,
+		padding,
+	):
+		collator_with_padding = DataCollatorWithPadding(
+			tokenizer,
+			padding,
+			return_tensors="pt",
+		)
+		result = collator_with_padding(batch)
+		result = {
+			k: v[:, : self.experiment_config.max_input_length]
+			for k, v in result.items()
+		}
+		result['labels'] = result['input_ids']
+		return result
+
+	def load_data(self):
+		train_data = load_from_disk(...)
+		self.train_dataloader = DataLoader(
+			dataset=train_data,
+			batch_size=...,
+			shuffle=True,
+			collate_fn=partial(self.collate_batch_fn, padding="longest")
+			num_workers=...,
+		)
+		val_data = load_from_disk(...)
+		self.val_dataloader = DataLoader(...)
+
+	def train(self):
+		self.trainer.fit(
+			self.model,
+			train_dataloader,
+			val_dataloader,
+			ckpt_path,
+		)
+		self.trainer.print(torch.cuda.memory_summary())
+
+
+@tyro.conf.configure(tyro.conf.FlagConversionOff, tyro.conf.SuperessFixed)
+def main(
+	model_config,
+	exp_config,
+):
+	L.seed_everything(...)
+	context = TrainingContext(model_config, experiment_config)
+	context.build()
+	context.load_data()
+	context.train()
+
+
+if __name__ == "__main__":
+	tyro.cli(main, use_underscores=True)
