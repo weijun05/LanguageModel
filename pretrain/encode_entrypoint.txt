@@ -1,0 +1,20 @@
+
+
+def generator(data_set: IterableDataset):
+	yield from data_set
+
+
+def tokenize_data(input, output, streaming: bool=True):
+	soruce_data = load_dataset(...).select_column(...)
+
+	tokenized_data = source_data.map(
+		lambda batch: self.tokenizer(...),
+		batch_size=10,
+		remove_columns=[...],
+	)
+
+	if streaming is True:
+		tokenized_data = Dataset.from_generator(
+			partial(generator, tokenized_data),
+			features,
+		)

@@ -1,0 +1,72 @@
+"""Model context with structure and tokenization"""
+
+
+class ModelContext: ...
+
+
+class ModelFamily: ...
+
+
+import torch.distributed._shard.checkpoint as dist_cp
+# model_context.py
+from transformers.models.llama.modeling_llama import LlamaMLP
+
+
+class ModelNameList(str, enum.Enum):
+    @calssmethod
+    def list(cls):
+        return [name.value for name in cls]
+
+
+class HfModel(ModelNameList):
+    NAME = "NAME"
+
+
+class HfModelContext: ...
+
+
+class Context(HfModelContext):
+    def __init__(): ...
+
+    def get_layer_for_activation_checkpointing():
+        return {}
+
+    def rename_ckpt_state_dict(
+        self,
+        state_dict: OrderedList,
+        target_substr,
+        replace_substr,
+    ) -> OrderedDict:
+        new = OrderedDict()
+        for k, v in state_dict.items():
+            new[k.replace(target_substr, replace_substr)] = v
+        return new
+
+    def load_ckpt(self, ckpt_path, model_config):
+        checkpoint = torch.load(ckpt_path)
+        model = self.get_hf_model(model_config)
+        try:
+            model.load_state_dict(checkpoint)
+        except RuntimeError as e:
+            if "model.model" in str(e):
+                state_dict = self.rename_ckpt_state_dict(
+                    checkpoint["state_dict"],
+                    "model.model.",
+                    "model.",
+                )
+                model.load_dict(state_dict)
+        return model
+
+    def load_shared_ckpt(self, ckpt_path, model_config):
+        model = self.get_hf_model(model_config)
+        try:
+            dist_cp.load_state_dict(
+                state_dict=model.state_dict(),
+                storage_reader=disct_cp.FileSystemReader(ckpt_path),
+                no_dist=True,
+            )
+        except RuntimeError as e:
+            if "model.model" in str(e):
+                state_dict = {"model": {"model": model.state_dict()}}
+                dist_cp.load_state_dict(...)
+        return model
