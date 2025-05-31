@@ -1,0 +1,11 @@
+"""Training job script"""
+
+import dataclass_wizard
+import fire
+
+
+def train(train_job_arg_file_path: str): ...
+
+
+if __name__ == "__main__":
+    fire.Fire(train)
